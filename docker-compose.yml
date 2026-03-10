@@ -1,10 +1,12 @@
-version: '3.8'
-
 services:
   hls-proxy:
     build: .
+    image: maki-hls-proxy-lightest
+    container_name: maki-hls-proxy-lightest
     ports:
-      - "8080:8080"
+      - "80:80"
     restart: unless-stopped
-    environment:
-      - PROXY_HOST=${PROXY_HOST:-http://localhost:8080}
+    env_file:
+      - .env
+    volumes:
+      - ./maki-hls-proxy-cache:/cache

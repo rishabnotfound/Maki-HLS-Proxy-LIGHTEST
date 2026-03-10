@@ -1,6 +1,20 @@
 local http = require "resty.http"
 local utils = require "utils"
 local cjson = require "cjson.safe"
+local access = require "access"
+
+-- Handle OPTIONS preflight
+if ngx.req.get_method() == "OPTIONS" then
+    return access.handle_options()
+end
+
+-- Check origin
+if not access.check() then
+    return access.deny()
+end
+
+-- Set CORS headers for response
+access.set_cors_headers()
 
 -- Get query parameters
 local args = ngx.req.get_uri_args()
@@ -54,6 +68,41 @@ end
 local content = res.body
 local base_url = utils.get_base_url(url)
 
+-- Check if URL looks like a segment (ts, m4s, aac, mp4, vtt, key, etc.)
+local function is_segment_url(uri)
+    local lower_uri = uri:lower()
+    -- Common segment extensions
+    if lower_uri:match("%.ts") then return true end
+    if lower_uri:match("%.m4s") then return true end
+    if lower_uri:match("%.m4a") then return true end
+    if lower_uri:match("%.m4v") then return true end
+    if lower_uri:match("%.mp4") then return true end
+    if lower_uri:match("%.aac") then return true end
+    if lower_uri:match("%.vtt") then return true end
+    if lower_uri:match("%.webvtt") then return true end
+    if lower_uri:match("%.srt") then return true end
+    if lower_uri:match("%.key") then return true end
+    -- Check for segment patterns in query params
+    if lower_uri:match("segment") then return true end
+    if lower_uri:match("/seg%-") then return true end
+    if lower_uri:match("/chunk") then return true end
+    return false
+end
+
+-- Determine proxy type - default to m3u8 unless it looks like a segment
+local function get_proxy_type(uri)
+    -- Explicit m3u8/m3u extension
+    if uri:match("%.m3u8") or uri:match("%.m3u$") or uri:match("%.m3u%?") then
+        return "m3u8-proxy"
+    end
+    -- Looks like a segment
+    if is_segment_url(uri) then
+        return "ts-proxy"
+    end
+    -- Default to m3u8 for unknown URLs (safer for playlists)
+    return "m3u8-proxy"
+end
+
 -- Helper: rewrite URI attribute in a line
 local function rewrite_uri_attr(line, proxy_type)
     local uri = line:match('URI="([^"]+)"')
@@ -67,20 +116,32 @@ local function rewrite_uri_attr(line, proxy_type)
     return line
 end
 
+-- Track if next line is a variant playlist URL (follows #EXT-X-STREAM-INF)
+local next_is_variant = false
+
 -- Process the M3U8 content line by line
 local lines = {}
 for line in content:gmatch("[^\r\n]+") do
     local processed_line = line
 
     if line ~= "" then
-        -- Segment URLs (not tags)
+        -- Segment/Playlist URLs (not tags)
         if not line:match("^#") then
             local segment_url = utils.resolve_url(base_url, line)
-            local proxy_type = "ts-proxy"
-            if line:match("%.m3u8") or line:match("%.m3u$") then
+            local proxy_type
+            if next_is_variant then
+                -- After #EXT-X-STREAM-INF, always a playlist
                 proxy_type = "m3u8-proxy"
+                next_is_variant = false
+            else
+                -- Use detection for segments in media playlists
+                proxy_type = get_proxy_type(line)
             end
             processed_line = utils.build_proxy_url(segment_url, headers, proxy_type)
+
+        -- Variant stream info (next line is playlist URL)
+        elseif line:match("^#EXT%-X%-STREAM%-INF") then
+            next_is_variant = true
 
         -- Encryption keys
         elseif line:match("^#EXT%-X%-KEY") then
@@ -94,20 +155,13 @@ for line in content:gmatch("[^\r\n]+") do
         elseif line:match("^#EXT%-X%-MAP") then
             processed_line = rewrite_uri_attr(line, "ts-proxy")
 
-        -- I-Frame playlists (point to m3u8)
+        -- I-Frame playlists (always m3u8)
         elseif line:match("^#EXT%-X%-I%-FRAME%-STREAM%-INF") then
             processed_line = rewrite_uri_attr(line, "m3u8-proxy")
 
-        -- Alternate renditions (audio/subtitles/video)
+        -- Alternate renditions (audio/subtitles - always m3u8 playlists)
         elseif line:match("^#EXT%-X%-MEDIA") then
-            local uri = line:match('URI="([^"]+)"')
-            if uri then
-                local proxy_type = "ts-proxy"
-                if uri:match("%.m3u8") or uri:match("%.m3u$") then
-                    proxy_type = "m3u8-proxy"
-                end
-                processed_line = rewrite_uri_attr(line, proxy_type)
-            end
+            processed_line = rewrite_uri_attr(line, "m3u8-proxy")
 
         -- LL-HLS: Partial segments
         elseif line:match("^#EXT%-X%-PART:") then
@@ -117,7 +171,7 @@ for line in content:gmatch("[^\r\n]+") do
         elseif line:match("^#EXT%-X%-PRELOAD%-HINT") then
             processed_line = rewrite_uri_attr(line, "ts-proxy")
 
-        -- LL-HLS: Rendition reports (for blocking playlist reload)
+        -- LL-HLS: Rendition reports (m3u8)
         elseif line:match("^#EXT%-X%-RENDITION%-REPORT") then
             processed_line = rewrite_uri_attr(line, "m3u8-proxy")
         end

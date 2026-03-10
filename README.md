@@ -1,62 +1,128 @@
-# Nginx HLS Proxy
+<p align="center">
+      <img
+        src="./public/logo.png"
+        width="200"
+        height="200"
+      />
+</p>
 
-A lightweight HLS proxy built with OpenResty (Nginx + Lua).
+# <p align="center">Maki-HLS-Proxy-LIGHTEST</p>
 
-## Routes
+The **fastest** and **lightest** HLS proxy. Pure Nginx + Lua. No Node.js, no Python, no bloat.
 
-### `/m3u8-proxy`
-Proxies M3U8 playlists and rewrites segment URLs to route through the proxy.
+~15MB Docker image. Handles thousands of concurrent streams.
 
-### `/ts-proxy`
-Proxies TS segments, encryption keys, and init segments.
+## Why?
 
-## Query Parameters
+| | Node.js Proxy | This |
+|--|---------------|------|
+| Image Size | ~200MB+ | ~15MB |
+| Memory | 50-100MB+ | ~5MB |
+| Dependencies | node_modules hell | Zero |
+| Speed | JavaScript | C + LuaJIT |
 
-| Parameter | Description |
-|-----------|-------------|
-| `url` | URL-encoded target URL |
-| `headers` | URL-encoded JSON object of headers |
+## Install Docker (if needed)
 
-## Usage
+```bash
+# Ubuntu/Debian
+sudo apt update && sudo apt install snapd -y
+sudo snap install docker
+```
 
-### Build & Run
+## Quick Start
+
+```bash
+git clone https://github.com/rishabnotfound/maki-hls-proxy-lightest.git
+cd maki-hls-proxy-lightest
+docker compose up -d --build
+```
+
+That's it. Running on port 80.
+
+## Deploy with Cloudflare (Free SSL + CDN)
+
+No CloudPanel, no Nginx config, no certbot. Just:
+
+1. Get a VPS (any cheap one works)
+2. Run the Quick Start commands above
+3. In Cloudflare, add an **A record** pointing to your VPS IP
+4. Edit `.env` and set your domain:
+
+```env
+PROXY_HOST=https://proxy.yourdomain.com
+```
+
+5. Restart:
 
 ```bash
 docker compose up -d --build
 ```
 
-### Example Request
+Done. Cloudflare handles SSL automatically.
 
-```bash
-# Basic playlist proxy
-curl "http://localhost:8080/m3u8-proxy?url=https%3A%2F%2Fexample.com%2Fstream.m3u8"
+## Routes
 
-# With custom headers
-curl "http://localhost:8080/m3u8-proxy?url=https%3A%2F%2Fexample.com%2Fstream.m3u8&headers=%7B%22Referer%22%3A%22https%3A%2F%2Fexample.com%22%7D"
+```
+GET /m3u8-proxy.m3u8?url={encoded}&headers={encoded}
+GET /ts-proxy.ts?url={encoded}&headers={encoded}
 ```
 
-### JavaScript Example
+## Usage
 
 ```javascript
-const url = 'https://example.com/stream.m3u8';
-const headers = {
+const proxy = 'https://proxy.yourdomain.com';
+const url = encodeURIComponent('https://example.com/stream.m3u8');
+const headers = encodeURIComponent(JSON.stringify({
   'Referer': 'https://example.com',
   'Origin': 'https://example.com'
-};
+}));
 
-const proxyUrl = `http://localhost:8080/m3u8-proxy?url=${encodeURIComponent(url)}&headers=${encodeURIComponent(JSON.stringify(headers))}`;
+fetch(`${proxy}/m3u8-proxy.m3u8?url=${url}&headers=${headers}`);
 ```
 
-## Environment Variables
+## Features
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `PROXY_HOST` | `http://localhost:8080` | Public URL of the proxy (used for rewriting URLs) |
+- Master/Variant playlists
+- TS/fMP4 segments
+- AES-128 encrypted streams
+- LL-HLS (Low-Latency)
+- Alternate audio/subtitles
+- I-Frame playlists
+- Origin protection (`allowed_origins.txt`)
+- CORS with credentials
+- Segment caching (configurable)
 
-## Production
+## Cache Settings
 
-For production, set `PROXY_HOST` to your public URL:
+Edit `.env` to configure caching:
 
-```bash
-PROXY_HOST=https://proxy.example.com docker compose up -d
+```env
+# Cache size (set to 0 to disable)
+CACHE_SIZE=10g
+
+# Auto-delete cache after this time
+CACHE_EXPIRY=2d
 ```
+
+Options: `1g`, `5g`, `10g`, `20g` | `1d`, `12h`, `7d`
+
+When cache is full, oldest items are automatically removed. Cache persists across restarts.
+
+## Origin Protection
+
+Edit `allowed_origins.txt`:
+```
+localhost
+yourdomain.com
+https://app.example.com
+```
+
+Rebuild after changes.
+
+## License
+
+[MIT](LICENSE) — do whatever you want, i know exactly what you're using this for 🥀
+
+## Credits
+
+Built by [rishabnotfound](https://github.com/rishabnotfound)

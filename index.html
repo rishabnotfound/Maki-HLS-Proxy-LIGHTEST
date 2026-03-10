@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Maki HLS Proxy</title>
+
+<style>
+*{
+  margin:0;
+  padding:0;
+  box-sizing:border-box;
+}
+
+body{
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  background:#0b0b0b;
+  color:#e5e5e5;
+  height:100vh;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+
+.container{
+  text-align:center;
+  padding:2rem;
+}
+
+h1{
+  font-weight:500;
+  font-size:1.8rem;
+  letter-spacing:1px;
+}
+
+.status{
+  margin-top:1rem;
+  font-size:.85rem;
+  color:#22c55e;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+}
+
+.dot{
+  width:6px;
+  height:6px;
+  border-radius:50%;
+  background:#22c55e;
+  box-shadow:0 0 6px #22c55e;
+  animation:pulse 1.8s infinite;
+}
+
+@keyframes pulse{
+  0%,100%{opacity:1}
+  50%{opacity:.4}
+}
+
+.routes{
+  margin-top:2rem;
+  font-size:.75rem;
+  color:#777;
+}
+
+code{
+  background:#141414;
+  padding:4px 8px;
+  border-radius:6px;
+  color:#ddd;
+}
+
+.github{
+  margin-top:1.5rem;
+  display:inline-block;
+  font-size:.75rem;
+  text-decoration:none;
+  color:#666;
+  transition:.2s;
+}
+
+.github:hover{
+  color:#fff;
+}
+
+</style>
+</head>
+
+<body>
+
+<div class="container">
+  <h1>Maki-HLS-Proxy-LIGHTEST</h1>
+
+  <div class="status">
+    <span class="dot"></span>
+    Running Blazing Fast
+  </div>
+
+  <div class="routes">
+    <code>/m3u8-proxy.m3u8</code>  
+    &nbsp;•&nbsp;  
+    <code>/ts-proxy.ts</code>
+  </div>
+
+  <a class="github" href="https://github.com/rishabnotfound/Maki-HLS-Proxy-LIGHTEST" target="_blank">
+    GitHub
+  </a>
+</div>
+
+</body>
+</html>

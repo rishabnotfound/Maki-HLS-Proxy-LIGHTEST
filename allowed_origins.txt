@@ -1,0 +1,10 @@
+# Allowed origins (one per line)
+# Lines starting with # are comments
+# Use * to allow all origins (not recommended for production)
+
+*
+localhost
+127.0.0.1
+google.com
+
+# you can use both format https://google.com or google.com

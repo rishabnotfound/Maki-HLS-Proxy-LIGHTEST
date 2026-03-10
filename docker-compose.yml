@@ -1,0 +1,10 @@
+version: '3.8'
+
+services:
+  hls-proxy:
+    build: .
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+    environment:
+      - PROXY_HOST=${PROXY_HOST:-http://localhost:8080}

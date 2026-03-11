@@ -1,7 +1,7 @@
 local _M = {}
 
 local CACHE_DIR = "/cache"
-local SIZE_CHECK_INTERVAL = 60  -- Check size every 60 seconds
+local SIZE_CHECK_INTERVAL = 30  -- Check size every 30 seconds
 local last_size_check = 0
 
 -- Simple hash function for cache keys
@@ -67,16 +67,16 @@ function _M.get_path(url)
     return string.format("%s/%s/%s", CACHE_DIR, subdir, key)
 end
 
--- Get current cache size in bytes
-local function get_cache_size()
-    local handle = io.popen("du -sb " .. CACHE_DIR .. " 2>/dev/null | cut -f1")
+-- Get current cache size in KB (Alpine compatible)
+local function get_cache_size_kb()
+    local handle = io.popen("du -sk " .. CACHE_DIR .. " 2>/dev/null | cut -f1")
     if not handle then return 0 end
     local result = handle:read("*a")
     handle:close()
     return tonumber(result) or 0
 end
 
--- Clean expired files and enforce size limit
+-- Clean expired files and enforce size limit (Alpine/BusyBox compatible)
 local function cleanup_cache()
     local now = os.time()
 
@@ -87,26 +87,67 @@ local function cleanup_cache()
     last_size_check = now
 
     local expiry = get_expiry_seconds()
-    local max_size = get_max_size()
-    local current_size = get_cache_size()
+    local max_size_kb = math.floor(get_max_size() / 1024)  -- Convert to KB
+    local current_size_kb = get_cache_size_kb()
 
-    -- First pass: delete expired files
-    local cmd = string.format(
-        "find %s -type f -mmin +%d -delete 2>/dev/null",
-        CACHE_DIR, math.floor(expiry / 60)
-    )
-    os.execute(cmd)
+    ngx.log(ngx.DEBUG, "Cache check: ", current_size_kb, "KB / ", max_size_kb, "KB limit")
 
-    -- Second pass: if still over limit, delete oldest files
-    current_size = get_cache_size()
-    if current_size > max_size then
-        -- Delete oldest 20% of files when over limit
-        local delete_cmd = string.format(
-            "find %s -type f -printf '%%T+ %%p\\n' 2>/dev/null | sort | head -n $(find %s -type f 2>/dev/null | wc -l | awk '{print int($1*0.2)+1}') | cut -d' ' -f2- | xargs rm -f 2>/dev/null",
-            CACHE_DIR, CACHE_DIR
-        )
-        os.execute(delete_cmd)
-        ngx.log(ngx.NOTICE, "Cache cleanup: was ", current_size, " bytes, limit ", max_size)
+    -- First pass: delete expired files (BusyBox find supports -mmin and -delete)
+    local expiry_mins = math.floor(expiry / 60)
+    if expiry_mins > 0 then
+        os.execute(string.format(
+            "find %s -type f -mmin +%d -delete 2>/dev/null",
+            CACHE_DIR, expiry_mins
+        ))
+    end
+
+    -- Recheck size after expiry cleanup
+    current_size_kb = get_cache_size_kb()
+
+    -- Second pass: if still over limit, delete oldest files until under 80% of limit
+    if current_size_kb > max_size_kb then
+        ngx.log(ngx.NOTICE, "Cache over limit: ", current_size_kb, "KB > ", max_size_kb, "KB, cleaning...")
+
+        local target_kb = math.floor(max_size_kb * 0.8)  -- Target 80% of max
+
+        -- Get all cache files sorted by modification time (oldest first)
+        -- Using ls -ltrR and parsing, Alpine/BusyBox compatible
+        local handle = io.popen(string.format(
+            "find %s -type f -exec ls -l {} \\; 2>/dev/null | sort -k6,7 | awk '{print $NF}'",
+            CACHE_DIR
+        ))
+
+        if handle then
+            local files = {}
+            for line in handle:lines() do
+                if line and #line > 0 then
+                    table.insert(files, line)
+                end
+            end
+            handle:close()
+
+            -- Delete oldest files until we're under target
+            local deleted = 0
+            for _, filepath in ipairs(files) do
+                if current_size_kb <= target_kb then
+                    break
+                end
+
+                -- Get file size before deleting
+                local size_handle = io.popen("ls -sk " .. filepath .. " 2>/dev/null | cut -d' ' -f1")
+                local file_size_kb = 0
+                if size_handle then
+                    file_size_kb = tonumber(size_handle:read("*a")) or 0
+                    size_handle:close()
+                end
+
+                os.remove(filepath)
+                current_size_kb = current_size_kb - file_size_kb
+                deleted = deleted + 1
+            end
+
+            ngx.log(ngx.NOTICE, "Cache cleanup: deleted ", deleted, " files, now ", current_size_kb, "KB")
+        end
     end
 
     -- Clean empty directories
@@ -121,7 +162,7 @@ function _M.get(url)
     local file = io.open(path, "rb")
     if not file then return nil end
 
-    -- Check expiry
+    -- Check expiry (stat -c works on Alpine)
     local handle = io.popen("stat -c %Y " .. path .. " 2>/dev/null")
     local attr = handle and handle:read("*a") or ""
     if handle then handle:close() end
@@ -156,12 +197,21 @@ function _M.set(url, content_type, body)
     cleanup_cache()
 
     -- Check if we have space (quick check)
-    local current_size = get_cache_size()
-    local max_size = get_max_size()
-    if current_size + #body > max_size then
-        -- Force cleanup
+    local current_size_kb = get_cache_size_kb()
+    local max_size_kb = math.floor(get_max_size() / 1024)
+    local body_size_kb = math.ceil(#body / 1024)
+
+    if current_size_kb + body_size_kb > max_size_kb then
+        -- Force immediate cleanup
         last_size_check = 0
         cleanup_cache()
+
+        -- Recheck - if still over, skip caching this file
+        current_size_kb = get_cache_size_kb()
+        if current_size_kb + body_size_kb > max_size_kb then
+            ngx.log(ngx.WARN, "Cache full, skipping: ", #body, " bytes")
+            return
+        end
     end
 
     local path = _M.get_path(url)

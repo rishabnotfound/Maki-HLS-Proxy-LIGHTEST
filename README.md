@@ -46,19 +46,8 @@ No CloudPanel, no Nginx config, no certbot. Just:
 1. Get a VPS (any cheap one works)
 2. Run the Quick Start commands above
 3. In Cloudflare, add an **A record** pointing to your VPS IP
-4. Edit `.env` and set your domain:
 
-```env
-PROXY_HOST=https://proxy.yourdomain.com
-```
-
-5. Restart:
-
-```bash
-docker compose up -d --build
-```
-
-Done. Cloudflare handles SSL automatically.
+Done. Cloudflare handles SSL automatically. The proxy auto-detects your domain from requests.
 
 ## Routes
 

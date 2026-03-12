@@ -14,7 +14,7 @@ if not access.check() then
 end
 
 -- Get query parameters
-local args = ngx.req.get_uri_args()
+local args = utils.parse_query_params()
 local url = utils.url_decode(args.url)
 local headers = utils.parse_headers(args.headers)
 

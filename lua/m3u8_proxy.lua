@@ -17,7 +17,7 @@ end
 access.set_cors_headers()
 
 -- Get query parameters
-local args = ngx.req.get_uri_args()
+local args = utils.parse_query_params()
 local url = utils.url_decode(args.url)
 local headers = utils.parse_headers(args.headers)
 
@@ -33,15 +33,26 @@ ngx.log(ngx.INFO, "Fetching M3U8: ", url)
 local httpc = http.new()
 httpc:set_timeout(15000)
 
--- Build request headers
+-- Extract host from URL
+local target_host = url:match("https?://([^/]+)")
+
+-- Build request headers with sensible defaults
 local req_headers = {
-    ["User-Agent"] = headers["User-Agent"] or "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-    ["Accept"] = "*/*",
+    ["Host"] = target_host,
+    ["User-Agent"] = headers["User-Agent"] or headers["user-agent"] or "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+    ["Accept"] = headers["Accept"] or headers["accept"] or "*/*",
+    ["Accept-Language"] = headers["Accept-Language"] or headers["accept-language"] or "en-US,en;q=0.9",
+    ["sec-fetch-dest"] = "empty",
+    ["sec-fetch-mode"] = "cors",
+    ["sec-fetch-site"] = "cross-site",
 }
 
--- Merge custom headers
+-- Merge custom headers (case-insensitive overrides)
 for k, v in pairs(headers) do
-    req_headers[k] = v
+    -- Skip Host header - lua-resty-http handles it specially
+    if k:lower() ~= "host" then
+        req_headers[k] = v
+    end
 end
 
 -- Fetch the M3U8 playlist

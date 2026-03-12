@@ -2,6 +2,26 @@ local _M = {}
 
 local cjson = require "cjson.safe"
 
+-- Parse query params from raw query string
+function _M.parse_query_params()
+    local query = ngx.var.query_string or ""
+    local params = {}
+
+    local url = query:match("url=(.-)&headers=")
+    if not url then
+        url = query:match("url=(.*)")
+    end
+    params.url = url
+
+    local headers = query:match("&headers=(.*)")
+    if not headers then
+        headers = query:match("^headers=(.*)")
+    end
+    params.headers = headers
+
+    return params
+end
+
 -- URL decode
 function _M.url_decode(str)
     if not str then return nil end
@@ -78,8 +98,17 @@ function _M.build_proxy_url(original_url, headers, proxy_type)
     local host = ngx.var.http_host or ngx.var.host or "localhost"
     local proxy_host = scheme .. "://" .. host
 
+    -- Copy headers but remove Host - let it be dynamic per URL
+    -- This handles cases where segments are on different domains than the playlist
+    local headers_copy = {}
+    for k, v in pairs(headers) do
+        if k:lower() ~= "host" then
+            headers_copy[k] = v
+        end
+    end
+
     local encoded_url = _M.url_encode(original_url)
-    local encoded_headers = _M.url_encode(cjson.encode(headers))
+    local encoded_headers = _M.url_encode(cjson.encode(headers_copy))
 
     -- Map proxy type to endpoint with extension
     local endpoint = "ts-proxy.ts"

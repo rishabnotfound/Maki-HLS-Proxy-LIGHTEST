@@ -24,8 +24,19 @@ if not url then
     return ngx.exit(400)
 end
 
+-- Extract host from target URL for default
+local target_host = url:match("https?://([^/]+)")
+
 -- Set variables for proxy_pass
 ngx.var.target_url = url
-ngx.var.custom_referer = headers["Referer"] or ""
-ngx.var.custom_origin = headers["Origin"] or ""
-ngx.var.custom_ua = headers["User-Agent"] or "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+ngx.var.custom_host = headers["Host"] or headers["host"] or target_host or ""
+ngx.var.custom_referer = headers["Referer"] or headers["referer"] or ""
+ngx.var.custom_origin = headers["Origin"] or headers["origin"] or ""
+ngx.var.custom_ua = headers["User-Agent"] or headers["user-agent"] or "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+ngx.var.custom_cookie = headers["Cookie"] or headers["cookie"] or ""
+ngx.var.custom_auth = headers["Authorization"] or headers["authorization"] or ""
+ngx.var.custom_accept = headers["Accept"] or headers["accept"] or "*/*"
+ngx.var.custom_accept_lang = headers["Accept-Language"] or headers["accept-language"] or ""
+ngx.var.custom_accept_enc = headers["Accept-Encoding"] or headers["accept-encoding"] or ""
+ngx.var.custom_xff = headers["X-Forwarded-For"] or headers["x-forwarded-for"] or ngx.var.remote_addr
+ngx.var.custom_range = headers["Range"] or headers["range"] or ""

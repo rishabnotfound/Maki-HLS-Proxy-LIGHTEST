@@ -54,6 +54,7 @@ Done. Cloudflare handles SSL automatically. The proxy auto-detects your domain f
 ```
 GET /m3u8-proxy.m3u8?url={encoded}&headers={encoded}
 GET /ts-proxy.ts?url={encoded}&headers={encoded}
+GET /mp4-proxy.mp4?url={encoded}&headers={encoded}
 ```
 
 ## Usage
@@ -77,6 +78,7 @@ fetch(`${proxy}/m3u8-proxy.m3u8?url=${url}&headers=${headers}`);
 - LL-HLS (Low-Latency)
 - Alternate audio/subtitles
 - I-Frame playlists
+- **MP4 proxy** (true streaming, minimal memory)
 - Origin protection (`allowed_origins.txt`)
 - CORS with credentials
 - Segment caching (configurable)

@@ -39,4 +39,5 @@ ngx.var.custom_accept = headers["Accept"] or headers["accept"] or "*/*"
 ngx.var.custom_accept_lang = headers["Accept-Language"] or headers["accept-language"] or ""
 ngx.var.custom_accept_enc = headers["Accept-Encoding"] or headers["accept-encoding"] or ""
 ngx.var.custom_xff = headers["X-Forwarded-For"] or headers["x-forwarded-for"] or ngx.var.remote_addr
-ngx.var.custom_range = headers["Range"] or headers["range"] or ""
+-- Use browser's Range header first (for video seeking), then fallback to query param
+ngx.var.custom_range = ngx.var.http_range or headers["Range"] or headers["range"] or ""

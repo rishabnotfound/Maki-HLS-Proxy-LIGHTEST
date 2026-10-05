@@ -5,8 +5,11 @@ services:
     container_name: maki-hls-proxy-lightest
     ports:
       - "80:80"
+      - "443:443"
     restart: unless-stopped
     env_file:
       - .env
     volumes:
       - ./maki-hls-proxy-cache:/cache
+      - ./letsencrypt:/etc/letsencrypt
+      - ./certbot-webroot:/var/www/certbot

@@ -49,6 +49,22 @@ No CloudPanel, no Nginx config, no certbot. Just:
 
 Done. Cloudflare handles SSL automatically. The proxy auto-detects your domain from requests.
 
+## Direct Domain (no Cloudflare) with Auto TLS
+
+If someone points a domain straight at your host (bypassing CF), the proxy can grab a free Let's Encrypt cert automatically.
+
+1. Point your domain's **A record** at the host IP. Port 80 must be reachable (needed for cert issuance).
+2. In `.env`:
+   ```env
+   DOMAIN=yourdomain.com
+   LETSENCRYPT_EMAIL=you@example.com
+   ```
+3. `docker compose up -d --build`
+
+First boot issues the cert, nginx reloads with HTTPS on :443, and a background loop renews every 12h. Certs persist in `./letsencrypt/`.
+
+Leave `DOMAIN` empty = HTTP-only (same as before, for the CF path).
+
 ## Routes
 
 ```

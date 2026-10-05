@@ -1,7 +1,7 @@
 FROM openresty/openresty:alpine
 
 # Install dependencies
-RUN apk add --no-cache perl curl gettext
+RUN apk add --no-cache perl curl gettext certbot openssl
 
 # Install lua-resty-http via opm
 RUN opm get ledgetech/lua-resty-http
